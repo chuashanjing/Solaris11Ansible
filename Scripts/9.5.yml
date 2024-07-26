@@ -1,0 +1,72 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: "9.5 Verify System File Permissions"
+      command: pkg verify
+      register: verify
+      ignore_errors: true
+
+    - name: verify output
+      debug: 
+        msg: "{{ verify.stdout }}"
+
+    - name: Check if required Error present
+      assert:
+        that:
+          - "'ERROR:' in verify.stdout"
+        fail_msg: "Error do not exist"
+        success_msg: "Error exists"
+      register: successorfailure
+      ignore_errors: true
+
+    - debug: msg="{{ successorfailure }}"
+
+    - name: YES ERROR
+      debug:
+        msg: "ERROR"
+      when: successorfailure.failed == false
+      register: error
+      ignore_errors: true
+
+    - name: NO ERROR
+      debug:
+        msg: "NO ERROR"
+      when: successorfailure.failed == true
+      register: error
+      ignore_errors: true
+
+    - name: Compliant
+      debug:
+        msg: "9.5 is compliant"
+      when: successorfailure.failed == true
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "9.5 is not compliant"
+      when: successorfailure.failed == false
+      register: notCompliant
+      ignore_errors: true
+
+    - name: Make it comply
+      command: pkg fix
+      when: notCompliant.msg == "9.5 is not compliant"
+      ignore_errors: true
+
+    - name: Final
+      debug:
+        msg: "9.5 is compliant"
+      when: isCompliant.msg == "9.5 is compliant"
+      ignore_errors: true
+    
+    - name: Rerun
+      debug:
+        msg: "Rerun to view changes"
+      when: notCompliant.msg == "9.5 is not compliant"
+      ignore_errors: true

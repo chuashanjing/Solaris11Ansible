@@ -1,0 +1,64 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '3.8 Restrict Core DUmps to Protected Directory'
+      command: coreadm
+      register: coreadm
+      ignore_errors: true
+
+    - name: coreadm output
+      debug: 
+        msg: "{{ coreadm.stdout }}"
+
+    - name: '3.8 Restrict Core DUmps to Protected Directory'
+      command: ls -ld /var/share/cores
+      register: permission
+      ignore_errors: true
+
+    - name: coreadm output
+      debug: 
+        msg: "{{ permission.stdout }}"
+
+    - name: 3.8 is compliant
+      debug:
+        msg: "3.8 is compliant"
+      when: |
+        coreadm.stdout == "     global core file pattern: /var/cores/core.%z.%f.%u.%p\n     global core file content: default\nkernel zone core file pattern: /var/cores/kzone.%z.%t\n       init core file pattern: core\n       init core file content: default\n            global core dumps: disabled\n       kernel zone core dumps: disabled\n       per-process core dumps: disabled\n      global setid core dumps: disabled\n per-process setid core dumps: disabled\n     global core dump logging: enabled\n        diagnostic core dumps: enabled\n             retention policy: summary\n        core diagnostic alert: enabled" and permission.stdout == "drwx------   2 root     sys            2 Jul 23 19:52 /var/share/cores"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "3.8 is compliant"
+      when: compliant.msg == "3.8 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "3.8 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        chmod 700 /var/share/cores;
+        coreadm -g /var/share/cores/core_%n%_%f_%u_%g_%t_%p -e log -e global -e global-setid -d process -d proc-setid;
+        coreadm -d global -d global-setid -d process -d proc-setid
+      when: isNonCompliant.msg == "3.8 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "3.8 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "3.8 is compliant"
+      when: isCompliant.msg == "3.8 is compliant"

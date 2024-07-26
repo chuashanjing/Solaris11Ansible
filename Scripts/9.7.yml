@@ -1,0 +1,69 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.7 Verify No UID 0 Accounts Exist Other than root'
+      shell: | 
+        logins -o | awk -F: '($2 == 0) { print $1 }' 
+      register: login
+      ignore_errors: true
+
+    - name: login
+      debug: 
+        msg: "{{ login.stdout }}"
+
+
+    #that: can be modified as required
+    - name: Check if root, rootbkup and admin_tenable exist
+      assert:
+        that:
+          - "'root' in login.stdout"
+          - "'rootbkup' in login.stdout"
+          - "'admin_tenable' in login.stdout"
+        fail_msg: "do not exist"
+        success_msg: "exists"
+      register: successorfailure
+      ignore_errors: true
+
+    - debug: msg="{{ successorfailure }}"
+
+    - name: 9.7 is compliant
+      debug:
+        msg: "9.7 is compliant"
+      when: successorfailure.msg == "exists"
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "9.7 is compliant"
+      when: compliant.msg == "9.7 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "9.7 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      debug:
+        msg: |
+          Disable or delete any other 0 UID entries that are displayed; there should be only one root, rootbkup and 
+          admin_tenable account. Finer granularity access control for administrative access can be obtained by using the 
+          Solaris Role-Based Access Control (RBAC) mechanism. RBAC configurations should be monitored via user_attr(4) to 
+          make sure that privileges are managed appropriately. 
+      when: isNonCompliant.msg == "9.7 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "9.7 is compliant"
+      when: isCompliant.msg == "9.7 is compliant"
+
+    

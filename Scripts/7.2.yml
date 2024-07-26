@@ -1,0 +1,82 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: "7.2 Set Strong Password Creation Policies"
+      shell: |
+        grep "^PASSLENGTH=" /etc/default/passwd;
+        grep "^NAMECHECK=" /etc/default/passwd;
+        grep "^HISTORY=" /etc/default/passwd;
+        grep "^MINDIFF=" /etc/default/passwd;
+        grep "^MINUPPER=" /etc/default/passwd;
+        grep "^MINLOWER=1" /etc/default/passwd;
+        grep "^MINSPECIAL=1" /etc/default/passwd;
+        grep "^MINDIGIT=1" /etc/default/passwd;
+        grep "^MAXREPEATS=1" /etc/default/passwd;
+        grep "^WHITESPACE=YES" /etc/default/passwd;
+        grep "^DICTIONDBDIR=/var/passwd" /etc/default/passwd;
+        grep "^DICTIONLIST=/usr/share/lib/dict/words" /etc/default/passwd;
+      register: policies
+      ignore_errors: true
+
+    - name: policies output
+      debug: 
+        msg: "{{ policies }}"
+
+    - name: Compliant
+      debug:
+        msg: "7.2 is compliant"
+      when: policies.stdout == "PASSLENGTH=14\nNAMECHECK=YES\nHISTORY=12\nMINDIFF=3\nMINUPPER=1\nMINLOWER=1\nMINSPECIAL=1\nMINDIGIT=1\nMAXREPEATS=1\nWHITESPACE=YES\nDICTIONDBDIR=/var/passwd\nDICTIONLIST=/usr/share/lib/dict/words"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "7.2 is compliant"
+      when: compliant.msg == "7.2 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "7.2 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc/default;
+        awk '
+        /PASSLENGTH=/ { $1 = "PASSLENGTH=14" };
+        /NAMECHECK=/ { $1 = "NAMECHECK=YES" };
+        /HISTORY=/ { $1 = "HISTORY=12" };
+        /MINDIFF=/ { $1 = "MINDIFF=3" };
+        /MINUPPER=/ { $1 = "MINUPPER=1" };
+        /MINLOWER=/ { $1 = "MINLOWER=1" };
+        /MINSPECIAL=/ { $1 = "MINSPECIAL=1" };
+        /MINDIGIT=/ { $1 = "MINDIGIT=1" };
+        /MAXREPEATS=/ { $1 = "MAXREPEATS=1" };
+        /WHITESPACE=/ { $1 = "WHITESPACE=YES" };
+        /DICTIONDBDIR=/ { $1 = "DICTIONDBDIR=/var/passwd" };
+        /DICTIONLIST=/ { $1 = "DICTIONLIST=/usr/share/lib/dict/words" };
+        { print }' passwd > passwd.CIS;
+        mv passwd.CIS passwd;
+      when: isNonCompliant.msg == "7.2 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "7.2 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "7.2 is compliant"
+      when: isCompliant.msg == "7.2 is compliant"
+
+

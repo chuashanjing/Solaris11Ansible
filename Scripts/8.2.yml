@@ -1,0 +1,58 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '8.2 Enable a Warning Banner for the FTP service'
+      shell: |
+        grep "DisplayConnect" /etc/proftpd.conf
+      register: display
+      ignore_errors: true
+
+    - name: display
+      debug: 
+        msg: "{{ display.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "8.2 is compliant"
+      when: display.stdout == "DisplayConnect\t\t/etc/issue"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "8.2 is compliant"
+      when: compliant.msg == "8.2 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "8.2 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+#my default solaris 11 has 2 tab spaces in between so i shall follow the default
+#instead of what cis has stated: DisplayConnect /etc/issue" >> /etc/proftpd.conf
+    - name: Make it compliant
+      shell: |
+        echo "DisplayConnect\t\t/etc/issue" >> /etc/proftpd.conf;
+        svcadm restart ftp
+      when: isNonCompliant.msg == "8.2 is non-compliant"
+      ignore_errors: true
+  
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "8.2 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "8.2 is compliant"
+      when: isCompliant.msg == "8.2 is compliant"
+

@@ -1,0 +1,70 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.4 Verify System Account Default Passwords'
+      shell: |
+        for user in $(logins -s | awk '{ print $1 }'); do 
+        if [ "${user}" != "root" ]; then  
+        stat=`passwd -s ${user} | awk '{ print $2 }'` 
+        if [ "${stat}" != "LK" ] && [ "${stat}" != "NL" ]; then 
+        echo "Account ${user} is not locked or non-login." 
+        fi 
+        fi 
+        done
+      register: acc
+      ignore_errors: true
+
+    - name: acc output
+      debug: 
+        msg: "{{ acc.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.4 is compliant"
+      when: acc.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.4 is compliant"
+      when: compliant.msg == "9.4 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "9.4 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        #1st pair:
+        passwd -d [username] #Remove password for user, replace [username]
+        passwd -l [username] #To lock a single account
+        
+        #REMOVE '#' and replace [username] with values as required
+
+        #2nd pair:
+        passwd -d [username] #Remove password for user, replace [username]
+        passwd -N [username] #To configure a single account to be non-login
+      when: isNonCompliant.msg == "9.4 is non-compliant"
+      ignore_errors: true
+  
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "9.4 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "9.4 is compliant"
+      when: isCompliant.msg == "9.4 is compliant"
+

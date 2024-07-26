@@ -1,0 +1,54 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '2.6 Disable Apache Service'
+      shell: svcs -Ho state svc:/network/http:apache24
+      register: result
+      ignore_errors: true
+
+    - name: result output
+      debug: 
+        msg: "{{ result.stdout }}"
+
+    - name: 2.6 is compliant
+      debug:
+        msg: "2.6 is compliant"
+      when: result.stdout == "" or result.stdout == "disabled"
+      register: compliant
+
+    - debug: msg="{{ compliant }}"
+
+    - name: Compliant
+      debug:
+        msg: "2.6 is compliant"
+      when: compliant.msg == "2.6 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "2.6 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - debug: msg="{{ isNonCompliant }}"
+
+    - name: Make it compliant
+      command: svcadm disable svc:/network/http:apache24
+      when: isNonCompliant.msg == "2.6 is non-compliant"
+    
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "2.6 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "2.6 is compliant"
+      when: isCompliant.msg == "2.6 is compliant"

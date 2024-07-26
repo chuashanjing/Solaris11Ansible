@@ -1,0 +1,53 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '2.2 Local-only Graphical Login Environment'
+      shell: |
+        svcs -Ho state svc:/application/graphical-login/gdm:default
+      register: gdm
+      ignore_errors: true
+
+    - name: server output
+      debug: 
+        msg: "{{ gdm.stdout }}"
+
+    - name: 2.2 is compliant
+      debug:
+        msg: "2.2 is compliant"
+      when: gdm.stdout == "" or gdm.stdout == "disabled"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "2.2 is compliant"
+      when: compliant.msg == "2.2 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "2.2 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        svcadm disable svc:/application/graphical-login/gdm:default
+      when: isNonCompliant.msg == "2.2 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "2.2 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "2.2 is compliant"
+      when: isCompliant.msg == "2.2 is compliant"

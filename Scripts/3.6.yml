@@ -1,0 +1,61 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '3.6 Disable Directed Broadcast Packet Forwarding'
+      command: ipadm show-prop -p _forward_directed_broadcasts -co current ip
+      register: current
+      ignore_errors: true
+
+    - name: '3.6 Disable Directed Broadcast Packet Forwarding'
+      command: ipadm show-prop -p _forward_directed_broadcasts -co persistent ip
+      register: persistent
+      ignore_errors: true
+
+    - name: current output
+      debug: 
+        msg: "{{ current.stdout }}"
+
+    - name: persistent output
+      debug: 
+        msg: "{{ persistent.stdout }}"
+
+    - name: 3.6 is compliant
+      debug:
+        msg: "3.6 is compliant"
+      when: current.stdout == "0" and persistent.stdout == "0"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "3.6 is compliant"
+      when: compliant.msg == "3.6 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "3.6 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        ipadm set-prop -p _forward_directed_broadcasts=0 ip
+      when: isNonCompliant.msg == "3.6 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "3.6 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "3.6 is compliant"
+      when: isCompliant.msg == "3.6 is compliant"

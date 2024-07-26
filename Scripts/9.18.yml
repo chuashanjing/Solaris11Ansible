@@ -1,0 +1,53 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.18 Check for Duplicate Group Names'
+      shell: | 
+        getent group | cut -f1 -d":" | sort -n | uniq -c | while read x ; do 
+        [ -z "${x}" ] && break 
+        set - $x 
+        if [ $1 -gt 1 ]; then 
+        gids=`getent group |\ 
+        nawk -F: '($1 == n) { print $3 }' n=$2 | xargs` 
+        echo "Duplicate Group Name ($2): ${gids}" 
+        fi 
+        done
+      register: audit1
+      ignore_errors: true
+
+    - name: audit1
+      debug: 
+        msg: "{{ audit1.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.18 is compliant"
+      when: audit1.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.18 is compliant"
+      when: compliant.msg == "9.18 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: | 
+          Correct or justify any items discovered in the Audit step. Determine if there are any duplicate group names, and 
+          work with their respective owners to determine the best course of action in accordance with site policy.
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Final
+      debug:
+        msg: "9.18 is compliant"
+      when: isCompliant.msg == "9.18 is compliant"

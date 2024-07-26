@@ -1,0 +1,53 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '2.11 Disable automout Service'
+      command: svcs -Ho state svc:/system/filesystem/autofs
+      register: autofs
+      ignore_errors: true
+
+    - name: server output
+      debug: 
+        msg: "{{ autofs.stdout }}"
+
+
+    - name: 2.11 is compliant
+      debug:
+        msg: "2.11 is compliant"
+      when: autofs.stdout == "" or autofs.stdout == "disabled"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "2.11 is compliant"
+      when: compliant.msg == "2.11 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "2.11 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        svcadm disable svc:/system/filesystem/autofs
+      when: isNonCompliant.msg == "2.11 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "2.11 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "2.11 is compliant"
+      when: isCompliant.msg == "2.11 is compliant"

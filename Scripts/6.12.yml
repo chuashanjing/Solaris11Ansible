@@ -1,0 +1,63 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.12 Limit Consecutive Login Attempts for SSH'
+      command: grep "^MaxAuthTries" /etc/ssh/sshd_config
+      register: auth
+      ignore_errors: true
+
+    - name: auth output
+      debug: 
+        msg: "{{ auth.stdout }}"
+
+
+    - name: 6.12 is compliant
+      debug:
+        msg: "6.12 is compliant"
+      when: auth.stdout == "MaxAuthTries 5" or auth.stdout == ""
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "6.12 is compliant"
+      when: compliant.msg == "6.12 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "6.12 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Default value
+      debug:
+        msg: "{{ auth.stdout.split()[1] }}"
+      register: value
+      ignore_errors: true
+
+    
+
+    - name: Make it compliant
+      shell: |
+        sed 's/^MaxAuthTries *{{ value.msg }}/MaxAuthTries 5/' /etc/ssh/sshd_config > /etc/ssh/sshd_config.CIS;
+        mv /etc/ssh/sshd_config.CIS /etc/ssh/sshd_config;
+        svcadm restart svc:/network/ssh;
+      when: isNonCompliant.msg == "6.12 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.12 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "6.12 is compliant"
+      when: isCompliant.msg == "6.12 is compliant"

@@ -1,0 +1,54 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '4.1 Create CIS Audit Class'
+      shell: grep ":CIS Solaris Benchmark" /etc/security/audit_class
+      register: output
+      ignore_errors: true
+
+    - name: output
+      debug: 
+        msg: "{{ output.stdout }}"
+
+    - name: 4.1 is compliant
+      debug:
+        msg: "4.1 is compliant"
+      when: output.stdout == "0x0100000000000000:cis:CIS Solaris Benchmark"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "4.1 is compliant"
+      when: compliant.msg == "4.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "4.1 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      lineinfile:
+        path: /etc/security/audit_class
+        insertafter: EOF
+        line: "0x0100000000000000:cis:CIS Solaris Benchmark"
+      when: isNonCompliant.msg == "4.1 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "4.1 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "4.1 is compliant"
+      when: isCompliant.msg == "4.1 is compliant"

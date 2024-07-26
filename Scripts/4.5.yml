@@ -1,0 +1,229 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '4.5 Configure Solaris Auditing'
+      command: auditconfig -getcond
+      register: one
+      ignore_errors: true
+
+    - name: '4.5 Configure Solaris Auditing'
+      command: auditconfig -getpolicy
+      register: two
+      ignore_errors: true
+
+    - name: '4.5 Configure Solaris Auditing'
+      command: auditconfig -getflags
+      register: three
+      ignore_errors: true
+
+    - name: '4.5 Configure Solaris Auditing'
+      command: auditconfig -getnaflags
+      register: four
+      ignore_errors: true
+
+    - name: '4.5 Configure Solaris Auditing'
+      command: auditconfig -getplugin audit_binfile
+      register: five
+      ignore_errors: true
+
+    - name: '4.5 Configure Solaris Auditing'
+      command: userattr audit_flags root
+      register: six
+      ignore_errors: true
+
+    
+    
+    
+    - name: '4.5 Configure Solaris Auditing'
+      shell: find /var/share/audit/ -name "*.not_terminated.*"
+      register: seven
+      ignore_errors: true
+
+    - name: Ensure file found
+      fail:
+        msg: "no files"
+      when: seven.stdout == ""
+
+    - name: getfilesize
+      stat:
+        path: "{{ item }}"
+      register: file_stats
+      with_items: "{{ seven.stdout_lines }}"
+
+    - name: collect file size
+      set_fact:
+        file_sizes: "{{ file_stats.results | map(attribute='stat.size') | list }}"
+    
+    - name: debug file size
+      debug:
+        var: file_sizes
+
+    - name: compare
+      debug:
+        msg: "file size complies"
+      when: item > 0
+      loop: "{{ file_sizes }}"
+      register: seven2
+
+    - name: Retrieve output
+      debug: msg="{{ seven2.results | json_query('[*].msg') }}"
+      register: output
+
+    - name: check 
+      set_fact:
+        all_compliant: "{{ output.msg | select('equalto', 'file size complies') | list | length == output.msg | length }}"
+
+    - name: set result to compliant if all match
+      debug:
+        msg: "compliant"
+      when: all_compliant
+      register: sevenCompliant
+
+
+    - name: one
+      debug: 
+        msg: "{{ one.stdout }}"
+
+    - name: two
+      debug: 
+        msg: "{{ two.stdout }}"
+
+    - name: three
+      debug: 
+        msg: "{{ three.stdout }}"
+
+    - name: four
+      debug: 
+        msg: "{{ four.stdout }}"
+
+    - name: five
+      debug: 
+        msg: "{{ five.stdout }}"
+
+    - name: six
+      debug: 
+        msg: "{{ six.stdout }}"
+
+    - name: seven
+      debug: 
+        msg: "{{ seven }}"
+
+    - name: one is compliant
+      debug:
+        msg: "one is compliant"
+      when: one.stdout == "audit condition = auditing"
+      register: oneComply
+    
+    - name: two is compliant
+      debug:
+        msg: "two is compliant"
+      when: two.stdout == "configured audit policies = argv,cnt,zonename\nactive audit policies = argv,cnt,zonename"
+      register: twoComply
+
+    - name: three is compliant
+      debug:
+        msg: "three is compliant"
+      when: three.stdout == "configured user default audit flags = cis,ft,lo,ss,as,ua,aa,ex(0x1000000800f1080,0x1000000800f1080)\nactive user default audit flags = cis,ft,lo,ss,as,ua,aa,ex(0x1000000800f1080,0x1000000800f1080)"
+      register: threeComply
+
+    - name: four is compliant
+      debug:
+        msg: "four is compliant"
+      when: four.stdout == "configured non-attributable audit flags = lo(0x1000,0x1000)\nactive non-attributable audit flags = lo(0x1000,0x1000)"
+      register: fourComply
+    
+    - name: five is compliant
+      debug:
+        msg: "five is compliant"
+      when: |
+        five.stdout == "Plugin: audit_binfile (active)\n\tAttributes: p_age=0h;p_dir=/var/audit;p_flags=all;p_fsize=0;p_minfree=1"
+      register: fiveComply
+
+    - name: six is compliant
+      debug:
+        msg: "six is compliant"
+      when: six.stdout == "lo,ad,ft,ex,cis:no"
+      register: sixComply
+
+    - name: seven is compliant
+      debug: 
+        msg: "seven is compliant"
+      when: sevenCompliant.msg == "compliant"
+      register: sevenComply
+
+    - name: 4.5 is compliant
+      debug:
+        msg: "4.5 is compliant"
+      when: 
+        - (oneComply.msg == "one is compliant")
+        - (twoComply.msg == "two is compliant")
+        - (threeComply.msg == "three is compliant")
+        - (fourComply.msg == "four is compliant")
+        - (fiveComply.msg == "five is compliant")
+        - (sixComply.msg == "six is compliant")
+        - (sevenComply.msg == "seven is compliant")
+      register: compliantreal
+      ignore_errors: true
+
+    - debug: msg="{{ compliantreal.failed }}"
+
+    - name: Compliant
+      debug:
+        msg: "4.5 is compliant"
+      when: compliantreal.msg == "4.5 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "4.5 is non-compliant"
+      when: compliantreal.failed == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - debug: msg="{{ isCompliant }}"
+    - debug: msg="{{ isNonCompliant }}"
+
+    - name: Make it compliant
+      shell: |
+        auditconfig -conf;
+        auditconfig -setflags lo,ad,ft,ex,cis;
+        auditconfig -setnaflags lo;
+        auditconfig -setpolicy cnt,argv,zonename;
+        auditconfig -setplugin audit_binfile active p_minfree=1;
+        audit -s;
+        rolemod -K audit_flags=lo,ad,ft,ex,cis:no root;
+        EDITOR=ed crontab -e root << END_CRON;
+        $
+        a
+        0 0 * * * /usr/sbin/audit -n
+        .
+        w
+        q
+        END_CRON
+        chown root:root /var/share/audit
+        chmod 750 /var/share/audit
+      when: isNonCompliant.msg == "4.5 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "4.5 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "4.5 is compliant"
+      when: isCompliant.msg == "4.5 is compliant"
+      ignore_errors: true
+      
+
+    
+
+    

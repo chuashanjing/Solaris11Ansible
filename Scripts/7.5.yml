@@ -1,0 +1,73 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: "7.5 Set 'mesg n' as Default for All Users"
+      command: grep "^mesg" /etc/.login
+      register: login
+      ignore_errors: true
+
+    - name: login
+      debug: 
+        msg: "{{ login.stdout }}"
+
+    - name: "7.5 Set 'mesg n' as Default for All Users"
+      command: grep "^mesg" /etc/profile
+      register: profile
+      ignore_errors: true
+
+    - name: profile
+      debug: 
+        msg: "{{ profile.stdout }}"
+
+    - name: 7.5 is compliant
+      debug:
+        msg: "7.5 is compliant"
+      when: 
+        - (login.stdout == "mesg n")
+        - (profile.stdout == "mesg n")
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "7.5 is compliant"
+      when: compliant.msg == "7.5 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "7.5 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc;
+        for file in profile .login ; do
+        if [ "`grep mesg $file`" ]; then
+        awk '$1 == "mesg" { $2 = "n" } { print }' $file > $file.CIS
+        mv $file.CIS $file
+        else
+        echo mesg n >> $file
+        fi
+        done
+      when: isNonCompliant.msg == "7.5 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "7.5 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "7.5 is compliant"
+      when: isCompliant.msg == "7.5 is compliant"
+
+    

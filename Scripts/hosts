@@ -1,0 +1,4 @@
+[solaris]
+solaris_host ansible_host=<ip address of Solaris Machine>
+solaris_host ansible_user=<your solaris machine username>
+solaris_host ansible_ssh_pass=<your solaris machine password>

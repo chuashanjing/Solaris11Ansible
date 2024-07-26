@@ -1,0 +1,88 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.17 Set Retry Limit for Account Lockout'
+      shell: grep "^RETRIES=" /etc/default/login
+      register: login
+      ignore_errors: true
+
+    - name: '6.17 Set Retry Limit for Account Lockout'
+      shell: grep "^LOCK_AFTER_RETRIES=" /etc/security/policy.conf
+      register: policy
+      ignore_errors: true
+
+    - name: '6.17 Set Retry Limit for Account Lockout'
+      shell: |
+        userattr lock_after_retries {{ item }}
+      register: user
+      loop:
+        - "shanjing"
+      ignore_errors: true
+
+    - name: login output
+      debug: 
+        msg: "{{ login.stdout }}"
+
+    - name: policy output
+      debug: 
+        msg: "{{ policy.stdout }}"
+
+    - name: user output
+      debug: 
+        msg: "{{ user.results[0].stdout }}"
+      register: user_output
+
+    - name: Compliant
+      debug:
+        msg: "6.17 is compliant"
+      when: login.stdout == "RETRIES=5" and policy.stdout == "LOCK_AFTER_RETRIES=YES" and user_output.msg == "no"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "6.17 is compliant"
+      register: isCompliant
+      when: compliant.msg == "6.17 is compliant"
+      ignore_errors: true
+
+    - name: isNotCompliant
+      debug:
+        msg: "6.17 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Make it comply
+      shell: |
+        cd /etc/default;
+        awk '/RETRIES=/ { $1 = "RETRIES=5" } { print }' login > login.CIS;
+        mv login.CIS login;
+        cd /etc/security;
+        awk '/LOCK_AFTER_RETRIES=/ { $1 = "LOCK_AFTER_RETRIES=YES" } { print }' policy.conf > policy.conf.CIS;
+        mv policy.conf.CIS policy.conf;
+        svcadm restart svc:/system/name-service/cache;
+      #remove the # if u want the command to disable account lock specifically for oracle account
+      #usermod -K lock_after_retries=no oracle
+      when: isNotCompliant.msg == "6.17 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "6.17 is non-compliant"
+      ignore_errors: true
+
+    - name: Final
+      debug:
+        msg: "6.17 is compliant"
+      when: isCompliant.msg == "6.17 is compliant"
+      ignore_errors: true
+
+
+    

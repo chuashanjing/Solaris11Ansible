@@ -1,0 +1,103 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.8 Ensure root PATH Integrity'
+      shell: | 
+        if [ "`echo $PATH | grep :: `" != "" ]; then 
+        echo "Empty Directory in PATH (::)" 
+        fi 
+      register: audit1
+      ignore_errors: true
+
+    - name: '9.8 Ensure root PATH Integrity'
+      shell: | 
+        if [ "`echo $PATH | grep :$`"  != "" ]; then 
+        echo "Trailing : in PATH" 
+        fi 
+      register: audit2
+      ignore_errors: true
+
+    - name: '9.8 Ensure root PATH Integrity'
+      shell: | 
+        echo '
+        #!/usr/bin/bash
+        p=`echo $PATH | sed -e 's/::/:/' -e 's/:$//' -e 's/:/ /g'`
+        set -- $p
+        while [ "$1" != "" ]; do
+        if [ "$1" = "." ]; then
+        echo "PATH contains ."
+        shift
+        continue
+        fi
+        if [ -d $1 ]; then
+        dirperm=`ls -ld $1 | cut -f1 -d" "`
+        if [ `echo $dirperm | cut -c6 ` != "-" ]; then
+        echo "Group Write permission set on directory $1"
+        fi
+        if [ `echo $dirperm | cut -c9 ` != "-" ]; then
+        echo "Other Write permission set on directory $1"
+        fi
+        fi
+        shift
+        done' > ~/temporaryscript;
+        chmod +x ~/temporaryscript;
+        ./temporaryscript;
+      register: audit3
+      ignore_errors: true
+
+    - name: audit1
+      debug: 
+        msg: "{{ audit1.stdout }}"
+
+    - name: audit2
+      debug: 
+        msg: "{{ audit2.stdout }}"
+
+    - name: audit3
+      debug: 
+        msg: "{{ audit3.stdout }}"
+
+    - name: temporaryscript exist
+      command: ls ~/temporaryscript
+      register: temporaryCheck
+      ignore_errors: true
+
+    - debug: msg="{{ temporaryCheck }}"
+
+    - name: Remove temporaryscript
+      command: rm ~/temporaryscript
+      when: temporaryCheck.stdout == "/root/temporaryscript"
+
+    - name: Compliant
+      debug:
+        msg: "9.8 is compliant"
+      when:
+        - (audit1.stdout == "")
+        - (audit2.stdout == "")
+        - (audit3.stdout == "")
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.8 is compliant"
+      when: compliant.msg == "9.8 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "9.8 is not compliant. Correct or justify any items discovered in the Audit step."
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Final
+      debug:
+        msg: "9.8 is compliant"
+      when: isCompliant.msg == "9.8 is compliant"

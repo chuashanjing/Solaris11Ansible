@@ -1,0 +1,69 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '4.2 Enable Auditing of Incoming Network Connections'
+      command: grep "cis" /etc/security/audit_event | awk -F:'{ print $2 }'
+      register: output
+      ignore_errors: true
+
+    - name: output
+      debug: 
+        msg: "{{ output.stdout }}"
+
+    - name: Check if required audit events are present
+      assert:
+        that:
+          - "'AUE_ACCEPT' in output.stdout"
+          - "'AUE_CONNECT' in output.stdout"
+          - "'AUE_SOCKACCEPT' in output.stdout"
+          - "'AUE_SOCKCONNECT' in output.stdout"
+          - "'AUE_inetd_connect' in output.stdout"
+        fail_msg: "Required audit events not present"
+        success_msg: "All required audit events are present"
+      register: successorfailure
+      ignore_errors: true
+
+    - debug: msg="{{ successorfailure }}"
+
+    - name: 4.2 is compliant
+      debug:
+        msg: "4.2 is compliant"
+      when: successorfailure.msg == "All required audit events are present"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "4.2 is compliant"
+      when: compliant.msg == "4.2 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "4.2 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cp /etc/security/audit_event /etc/security/audit_event.orig;
+        awk 'BEGIN{FS=":"; OFS=":"} {if ($2 ~ /AUE_ACCEPT|AUE_CONNECT|AUE_SOCKACCEPT|AUE_SOCKCONNECT|AUE_inetd_connect/)$4=$4",cis";} {print}' /etc/security/audit_event > /etc/security/audit_event.out;
+        cp /etc/security/audit_event.out /etc/security/audit_event;
+      when: isNonCompliant.msg == "4.2 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "4.2 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "4.2 is compliant"
+      when: isCompliant.msg == "4.2 is compliant"

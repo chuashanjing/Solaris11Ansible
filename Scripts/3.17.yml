@@ -1,0 +1,58 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '3.17 Disable Network Routing'
+      shell: |
+        routeadm -p | egrep "^ipv4-routing |^ipv4-forwarding " | awk '{printf("%s %s\n",$1, $NF);}'
+        routeadm -p | egrep "^ipv4-routing |^ipv4-forwarding " | awk '{printf("%s %s\n",$1, $2);}'
+        routeadm -p | egrep "^ipv6-routing |^ipv6-forwarding " | awk '{printf("%s %s\n",$1, $NF);}'
+        routeadm -p | egrep "^ipv6-routing |^ipv6-forwarding " | awk '{printf("%s %s\n",$1, $2);}'
+      register: output
+      ignore_errors: true
+
+    - name: output
+      debug: 
+        msg: "{{ output.stdout }}"
+
+    - name: 3.17 is compliant
+      debug:
+        msg: "3.17 is compliant"
+      when: output.stdout == "ipv4-routing current=disabled\nipv4-forwarding current=disabled\nipv4-routing persistent=disabled\nipv4-forwarding persistent=disabled\nipv6-routing current=disabled\nipv6-forwarding current=disabled\nipv6-routing persistent=disabled\nipv6-forwarding persistent=disabled"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "3.17 is compliant"
+      when: compliant.msg == "3.17 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "3.17 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        routeadm -d ipv4-forwarding -d ipv4-routing;
+        routeadm -d ipv6-forwarding -d ipv6-routing;
+        routeadm -u;
+      when: isNonCompliant.msg == "3.17 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "3.17 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "3.17 is compliant"
+      when: isCompliant.msg == "3.17 is compliant"

@@ -1,0 +1,79 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:    
+    - name: '1.1 Use the Latest Package Updates (MANUAL)'
+      command: pkg info entire
+      register: manual
+
+    - name: MANUAL output
+      debug:
+        msg: "{{ manual }}"
+
+    - name: '1.1 Use the Latest Package Updates (MANUAL)'
+      debug:
+        msg: | 
+          "You can manually verify the update associated with the running system using the following command. 
+          The output of this command will indicate the operation system version and update number as well as the Software 
+          Repository Update (SRU) number."
+
+    - name: '1.1 Use the Latest Package Updates (AUTOMATED)'
+      command: pkg update -n
+      register: result
+      ignore_errors: true
+
+    - name: result output
+      debug: 
+        msg: "{{ result.stdout }}"
+        
+
+    - name: Check if there is update
+      assert:
+        that:
+          - "'No updates available for this image.' in result.stdout"
+        fail_msg: "There is update"
+        success_msg: "No updates"
+      register: successorfailure
+      ignore_errors: true
+
+    - name: Compliant
+      debug:
+        msg: "1.1 is compliant"
+      when: successorfailure.msg == "No updates"
+      ignore_errors: true
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "1.1 is compliant"
+      when: compliant.msg == "1.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "1.1 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Make it comply
+      command: pkg update
+      when: isNotCompliant.msg == "1.1 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "1.1 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "1.1 is compliant"
+      when: isCompliant.msg == "1.1 is compliant"
+      ignore_errors: true

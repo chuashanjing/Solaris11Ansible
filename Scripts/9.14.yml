@@ -1,0 +1,52 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.14 Check That Users Are Assigned Home Directories'
+      shell: | 
+        logins -xo | while read line; do 
+        user=`echo ${line} | awk -F: '{ print $1 }'` 
+        home=`echo ${line} | awk -F: '{ print $6 }'` 
+        if [ -z "${home}" ]; then 
+        echo ${user} 
+        fi 
+        done 
+      register: audit1
+      ignore_errors: true
+
+    - name: audit1
+      debug: 
+        msg: "{{ audit1.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.14 is compliant"
+      when: audit1.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.14 is compliant"
+      when: compliant.msg == "9.14 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: | 
+          Correct or justify any items discovered in the Audit step. Determine if there exists any users who are in passwd but 
+          do not have a home directory, and work with those users to determine the best course of action in accordance 
+          with site policy.
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Final
+      debug:
+        msg: "9.14 is compliant"
+      when: isCompliant.msg == "9.14 is compliant"

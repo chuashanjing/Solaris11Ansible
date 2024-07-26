@@ -1,0 +1,80 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '2.9 Disable NIS Server Services'
+      shell: |
+        svcs -Ho state svc:/network/nis/server;
+      register: server
+      ignore_errors: true
+    
+    - name: '2.9 Disable NIS Server Services'
+      shell: |
+        svcs -Ho state svc:/network/nis/domain;
+      register: domain
+      ignore_errors: true
+
+    - name: server output
+      debug: 
+        msg: "{{ server.stdout }}"
+
+    - name: domain output
+      debug: 
+        msg: "{{ domain.stdout }}"
+
+
+ 
+    - name: 2.9 is compliant
+      debug:
+        msg: "2.9 is compliant"
+      when: 
+        - (server.stdout == "" or server.stdout == "disabled")
+        - (domain.stdout == "" or domain.stdout == "disabled")
+      register: compliant
+
+    - debug: msg="{{ compliant }}"
+
+    - name: Compliant
+      debug:
+        msg: "2.9 is compliant"
+      when: compliant.msg == "2.9 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "2.9 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant 1
+      command: svcadm disable svc:/network/nis/server
+      when: isNonCompliant.msg == "2.9 is non-compliant"
+      ignore_errors: true
+    
+    - name: LDAP Client in used check
+      shell: svcs -a | grep ldap | awk -F" " '{if ($1 ~ /disabled/ && $3 ~ /client/) print "LDAP Client is disabled - svc:/network/nfs/domain can be disabled.";}'
+      when: isNonCompliant.msg == "2.9 is non-compliant"
+      register: inUse
+
+    - debug: msg="{{ inUse.stdout }}"
+      when: isNonCompliant.msg == "2.9 is non-compliant"
+
+    - name: Make it compliant 2
+      command: svcadm disable svc:/network/nis/domain
+      when: isNonCompliant.msg == "2.9 is non-compliant" and inUse.stdout == "LDAP Client is disabled - svc:/network/nfs/domain can be disabled."
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "2.9 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "2.9 is compliant"
+      when: isCompliant.msg == "2.9 is compliant"

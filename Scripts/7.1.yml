@@ -1,0 +1,75 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: "7.1 Set Password Expiration Parameters on Active Accounts"
+      shell: |
+        logins -ox | awk -F: '( $1 != "root" && $8 != "LK" && $8 != "NL" && ( $10 < 7 || $11 > 91 || $12 < 7 )) { print }'
+      register: acc
+      ignore_errors: true
+
+    - name: "7.1 Set Password Expiration Parameters on Active Accounts"
+      shell: |
+        grep "WEEKS=" /etc/default/passwd | sort -u
+      register: passwd
+      ignore_errors: true
+
+    - name: acc output
+      debug: 
+        msg: "{{ acc.stdout }}"
+
+    - name: passwd output
+      debug: 
+        msg: "{{ passwd.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "7.1 is compliant"
+      when: acc.stdout == "" and passwd.stdout == "MAXWEEKS=13\nMINWEEKS=1\nWARNWEEKS=2"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "7.1 is compliant"
+      when: compliant.msg == "7.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "7.1 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        logins -ox | awk -F: '($1 == "root" || $8 == "LK" || $8 == "NL") { next } ; { cmd = "passwd" } ; ($11 < 91) { cmd = cmd " -x 91" } ($10 < 7) { cmd = cmd " -n 7" } ($12 < 28) { cmd = cmd " -w 28" } (cmd != "passwd") { print cmd " " $1 }' > /etc/CISupd_accounts;
+        /sbin/sh /etc/CISupd_accounts;
+        rm -f /etc/CISupd_accounts;
+        cd /etc/default;
+        cp passwd passwd.orig;
+        grep -v WEEKS passwd > passwd.CIS;
+        cat <<EODefaults >> passwd.CIS
+        MAXWEEKS=13
+        MINWEEKS=1
+        WARNWEEKS=2
+        EODefaults
+        mv passwd.CIS passwd;
+      when: isNonCompliant.msg == "7.1 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "7.1 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "7.1 is compliant"
+      when: isCompliant.msg == "7.1 is compliant"

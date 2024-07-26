@@ -1,0 +1,56 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '7.3 Set Default umask for users'
+      command: grep "^UMASK=" /etc/default/login
+      register: umask
+      ignore_errors: true
+
+    - name: umask
+      debug: 
+        msg: "{{ umask.stdout }}"
+
+    - name: 7.3 is compliant
+      debug:
+        msg: "7.3 is compliant"
+      when: umask.stdout == "UMASK=027"
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "7.3 is compliant"
+      when: compliant.msg == "7.3 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "7.3 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc/default;
+        awk '/#UMASK=/ { $1 = "UMASK=027" } { print }' login > login.CIS;
+        mv login.CIS login;
+      when: isNonCompliant.msg == "7.3 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "7.3 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "7.3 is compliant"
+      when: isCompliant.msg == "7.3 is compliant"
+
+    

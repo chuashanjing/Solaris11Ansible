@@ -1,0 +1,83 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '3.11 Ignore ICMP Redirect Messages'
+      command: ipadm show-prop -p _ignore_redirect -co current ipv4
+      register: currentip
+      ignore_errors: true
+
+    - name: '3.11 Ignore ICMP Redirect Messages'
+      command: ipadm show-prop -p _ignore_redirect -co persistent ipv4
+      register: persistentip
+      ignore_errors: true
+
+    - name: current output
+      debug: 
+        msg: "{{ currentip.stdout }}"
+
+    - name: persistent output
+      debug: 
+        msg: "{{ persistentip.stdout }}"
+
+    - name: '3.11 Ignore ICMP Redirect Messages'
+      command: ipadm show-prop -p _ignore_redirect -co current ipv6
+      register: currentipv6
+      ignore_errors: true
+
+    - name: '3.11 Ignore ICMP Redirect Messages'
+      command: ipadm show-prop -p _ignore_redirect -co persistent ipv6
+      register: persistentipv6
+      ignore_errors: true
+
+    - name: current output
+      debug: 
+        msg: "{{ currentipv6.stdout }}"
+
+    - name: persistent output
+      debug: 
+        msg: "{{ persistentipv6.stdout }}"
+
+    - name: 3.11 is compliant
+      debug:
+        msg: "3.11 is compliant"
+      when: 
+        - (currentip.stdout == "1" and persistentip.stdout == "1")
+        - (currentipv6.stdout == "1" and persistentipv6.stdout == "1")
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "3.11 is compliant"
+      when: compliant.msg == "3.11 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "3.11 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        ipadm set-prop -p _ignore_redirect=1 ipv4
+        ipadm set-prop -p _ignore_redirect=1 ipv6
+      when: isNonCompliant.msg == "3.11 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "3.11 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "3.11 is compliant"
+      when: isCompliant.msg == "3.11 is compliant"

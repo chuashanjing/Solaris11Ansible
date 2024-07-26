@@ -1,0 +1,89 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: 'Check if gdm installed'
+      shell: pkg info | grep gdm
+      register: installed
+      ignore_errors: true
+    
+    - debug: msg="{{ installed.stdout }}"
+
+    - name: 'GDM IS INSTALLED'
+      debug:
+        msg: "Gdm is installed"
+      when: | 
+        installed.stdout == "             Name: system/display-manager/gdm\n             FMRI: pkg://solaris/system/display-manager/gdm@3.24.2-11.4.0.0.1.14.0:20180814T172503Z\n       Source URL: https://download.gnome.org/sources/gdm/3.24/gdm-3.24.2.tar.xz"
+      register: gdm
+      ignore_errors: true
+
+    - debug: msg="{{ gdm.skipped }}"
+
+    - name: "8.4 Enable a Warning Banner for the GNOME Service"
+      shell: |
+        cd /etc/gdm/Init 
+        grep "Security Message" Default 
+      register: init
+      when: gdm.msg == "Gdm is installed"
+      ignore_errors: true
+
+    - name: init output
+      debug:
+        msg: "{{ init.stdout }}"
+      ignore_errors: true
+
+    - name: Compliant
+      debug:
+        msg: "8.4 is compliant"
+      when: init.stdout == "         --title=\"Security Message\" --filename=/etc/issue" or init.stdout == "/usr/bin/zenity --text-info --width=800 --height=300 --title=\"Security Message\" --filename=/etc/issue"
+      ignore_errors: true
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "8.4 is compliant"
+      when: compliant.msg == "8.4 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "8.4 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        sudo awk '/exit 0/ {print "/usr/bin/zenity --text-info --width=800 --height=300 --title=\"Security Message\" --filename=/etc/issue";} {print}' /etc/gdm/Init/Default > /tmp/Init_Default.tmp && sudo mv /tmp/Init_Default.tmp /etc/gdm/Init/Default
+      when: isNonCompliant.msg == "8.4 is non-compliant"
+      ignore_errors: true
+    
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "8.4 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL1
+      debug:
+        msg: "8.4 is compliant"
+      when: isCompliant.msg == "8.4 is compliant"
+      ignore_errors: true
+    
+    - name: FINAL2
+      debug:
+        msg: "8.4 is compliant if GDM is not installed"
+      when: gdm.skipped == true
+      ignore_errors: true
+
+    
+      
+
+  
+
+    

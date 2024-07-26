@@ -1,0 +1,132 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.3 Restrict at/cron to Authorized Users'
+      command: ls /etc/cron.d/cron.deny
+      register: crondeny
+      ignore_errors: true
+
+    - name: '6.3 Restrict at/cron to Authorized Users'
+      command: ls /etc/cron.d/at.deny
+      register: atdeny
+      ignore_errors: true
+
+    - name: '6.3 Restrict at/cron to Authorized Users'
+      command: cat /etc/cron.d/cron.allow
+      register: cronallow
+      ignore_errors: true
+
+    - name: '6.3 Restrict at/cron to Authorized Users'
+      command: wc -l /etc/cron.d/at.allow | awk '{ print $1 }'
+      register: atallow
+      ignore_errors: true
+
+    - name: crondeny output
+      debug: 
+        msg: "{{ crondeny.stdout }}"
+
+    - name: atdeny output
+      debug: 
+        msg: "{{ atdeny.stdout }}"
+
+    - name: cronallow output
+      debug: 
+        msg: "{{ cronallow.stdout }}"
+
+    - name: atallow output
+      debug: 
+        msg: "{{ atallow.stdout }}"
+
+
+
+    - name: crondeny compliancy
+      debug:
+        msg: "crondeny compliant"
+      when: crondeny.stdout == ""
+      register: crondenyCompliant
+    
+    - name: atdeny compliancy
+      debug:
+        msg: "atdeny compliant"
+      when: atdeny.stdout == ""
+      register: atdenyCompliant
+
+    - name: cronallow compliancy
+      debug:
+        msg: "cronallow compliant"
+      when: cronallow.stdout == "root\nsys\noradba\napmgr\nips\ndsa"
+      register: cronallowCompliant
+
+    - name: atallow compliancy
+      debug:
+        msg: "atallow compliant"
+      when: atallow.stdout == "0 /etc/cron.d/at.allow\n0 total"
+      register: atallowCompliant
+
+    - name: Compliant
+      debug:
+        msg: "6.3 is compliant"
+      when: 
+        - (crondenyCompliant.msg == "crondeny compliant")
+        - (atdenyCompliant.msg == "atdeny compliant")
+        - (cronallowCompliant.msg == "cronallow compliant")
+        - (atallowCompliant.msg == "atallow compliant") 
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "6.3 is compliant"
+      when: compliant.msg == "6.3 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - debug: msg="{{ compliant }}"
+
+    - name: isNonCompliant
+      debug:
+        msg: "6.3 is non-compliant"
+      when: compliant.failed == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it comply
+      shell: |
+        mv /etc/cron.d/cron.deny /etc/cron.d/cron.deny.cis;
+        mv /etc/cron.d/at.deny /etc/cron.d/at.deny.cis;
+        echo root > /etc/cron.d/cron.allow;
+        echo sys >> /etc/cron.d/cron.allow;
+        echo oradba >> /etc/cron.d/cron.allow;
+        echo apmgr >> /etc/cron.d/cron.allow;
+        echo ips >> /etc/cron.d/cron.allow;
+        echo dsa >> /etc/cron.d/cron.allow;
+        cp /dev/null /etc/cron.d/at.allow;
+        chown root:root /etc/cron.d/cron.allow /etc/cron.d/at.allow;
+        chmod 400 /etc/cron.d/cron.allow /etc/cron.d/at.allow;
+      when: isNonCompliant.msg == "6.3 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.3 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "6.3 is compliant"
+      when: isCompliant.msg == "6.3 is compliant"
+      ignore_errors: true
+
+    
+
+    
+
+    
+
+    

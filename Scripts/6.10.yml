@@ -1,0 +1,105 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+
+    - name: '6.10 Disable Host-Based Authentication for Login-based Services'
+      shell: grep "pam_rhosts_auth" /etc/pam.conf
+      register: pam
+      ignore_errors: true
+
+    - name: pam output
+      debug: 
+        msg: "{{ pam.stdout_lines }}"
+
+    - name: isCommented
+      set_fact:
+        compliant1: "{{ pam.stdout_lines | select('search', '^#.*pam_rhosts_auth*.') | list | length == pam.stdout_lines | length }}"
+
+
+####SECONDPART
+    - name: '6.10 Disable Host-Based Authentication for Login-based Services'
+      shell: grep "pam_rhosts_auth" /etc/pam.d/*
+      register: pamd
+      ignore_errors: true
+
+    - name: pamd output
+      debug: 
+        msg: "{{ pamd.stdout_lines }}"
+
+
+    - name: retrieve files
+      debug:
+        msg: "{{ pamd.stdout_lines | map('regex_replace', '^(.*?)(:.*)$', '\\1') | unique }}"
+      register: files
+
+    - debug: msg="{{ files.msg }}"
+
+
+    - name: values
+      debug:
+        msg: "{{ pamd.stdout_lines | map('regex_replace', '^.*/[^:]*:(.*)', '\\1') | list }}"
+      register: values
+
+    - name: isCommented
+      set_fact:
+        compliant2: "{{ values.msg | select('search', '^#.*pam_rhosts_auth*.') | list | length == values.msg | length }}"
+
+    - debug: msg="{{ compliant1 }}"
+    - debug: msg="{{ compliant2 }}"
+
+    - name: Compliant
+      debug:
+        msg: "6.10 is compliant"
+      when: compliant1 == true and compliant2 == true
+      register: isCompliant
+      ignore_errors: true
+
+    - name: Non-Compliant
+      debug:
+        msg: "6.10 is non-compliant"
+      when: compliant1 == false or compliant2 == false
+      register: isNotCompliant
+      ignore_errors: true
+
+    - name: Make it comply
+      lineinfile:
+        path: /etc/pam.conf
+        regexp: '^(?!#)(.*pam_rhosts_auth.*)'
+        line: |
+          #\1
+        backrefs: yes
+      with_items: "{{ pam.stdout_lines }}"
+      when: 
+        - (isNotCompliant.msg == "6.10 is non-compliant")
+        - (compliant1 == false)
+      ignore_errors: true
+
+    - name: Make it comply2
+      lineinfile:
+        path: '{{ item }}'
+        regexp: '^(?!#)(.*pam_rhosts_auth.*)'
+        line: |
+          #\1
+        backrefs: yes
+      with_items: "{{ files.msg }}"
+      when:
+        - (isNotCompliant.msg == "6.10 is non-compliant")
+        - (compliant2 == false)
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "6.10 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "6.10 is compliant"
+      when: isCompliant.msg == "6.10 is compliant"
+      ignore_errors: true

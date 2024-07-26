@@ -1,0 +1,85 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '5.1 Set Sticky Bit on World Writable Directories'
+      shell: find / \( -fstype nfs -o -fstype cachefs -o -fstype autofs -o -fstype ctfs -o -fstype mntfs -o -fstype objfs -o -fstype proc \) -prune -o -type d \( -perm -0002 -a ! -perm -1000 \) -ls
+      register: output
+      ignore_errors: true
+
+    - name: output
+      debug: 
+        msg: "{{ output.stdout }}"
+
+    - name: Ensure file found
+      fail:
+        msg: "no files found"
+      when: output.stdout == ""
+      register: nofiles
+      ignore_errors: true
+
+    - name: get file details
+      stat:
+        path: "{{ item }}"
+      register: file_stats
+      with_items: "{{ output.stdout_lines }}"
+
+    - debug: msg="{{ file_stats }}"
+
+    - name: collect file names
+      set_fact:
+        file_names: "{{ file_stats.results | map(attribute='item') | list }}"
+
+    - debug: msg="{{ file_names }}"
+
+    - name: Retrieve directory names
+      debug:
+        msg: "{{ file_names | map('regex_replace', '^.* (.+)$', '\\1') | list }}"
+      register: filenames
+
+    - name: Compliant
+      debug:
+        msg: "5.1 is compliant"
+      when: nofiles.msg == "no files found"
+      ignore_errors: true
+      register: compliant
+
+
+    - name: isCompliant
+      debug:
+        msg: "5.1 is compliant"
+      when: compliant.msg == "5.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: NonCompliant
+      debug:
+        msg: "5.1 is non-compliant"
+      when: compliant.failed == true
+      ignore_errors: true
+
+    - name: Make it compliant
+      command: chmod +t "{{ item }}"
+      when: compliant.failed == true
+      with_items: "{{ filenames.msg }}"
+      ignore_errors: true
+    
+    - name: FINAL
+      debug:
+        msg: "5.1 is compliant"
+      when: isCompliant.msg == "5.1 is compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: compliant.failed == true
+      ignore_errors: true
+    
+    
+    
+    

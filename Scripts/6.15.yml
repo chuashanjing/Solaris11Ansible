@@ -1,0 +1,115 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+    
+
+  tasks:
+  #GenuineIntel if its not ur cpu it probably will give out an error
+  #For example mine is AMD Ryzen, so i replace GenuineIntel with AuthenticAMD
+    - name: '6.15 Secure the GRUB Menu (Intel)'
+      shell: psrinfo -pv | awk '/GenuineIntel/ {print substr($2, 2)}'
+      register: keyserv
+      ignore_errors: true
+
+    - name: '6.15 Secure the GRUB Menu (Intel)'
+      shell: /usr/bin/grep "password.cfg" /rpool/boot/grub/grub.cfg
+      register: grub
+      ignore_errors: true
+
+    - name: keyserv output
+      debug: 
+        msg: "{{ keyserv.stdout }}"
+
+    - name: grub output
+      debug: 
+        msg: "{{ grub.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "6.15 is compliant"
+      when: keyserv.stdout == "GenuineIntel" and grub.stdout == "source /@/boot/grub/password.cfg"
+      ignore_errors: true
+      register: compliant
+
+    - debug: msg="{{ compliant }}"
+
+    - name: isCompliant
+      debug:
+        msg: "6.15 is compliant"
+      when: compliant.msg == "6.15 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "6.15 is not compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    #change grub_password to your desired password
+    - name: grub_pass
+      set_fact:
+        grub_password: "password1"
+      when: isNonCompliant.msg == "6.15 is not compliant"
+      ignore_errors: true
+
+    
+
+    - name: Make it compliant
+      expect:
+        command: /usr/lib/grub2/bios/bin/grub-mkpasswd-pbkdf2
+        responses: 
+          "Enter password:": "{{ grub_password }}"
+          "Reenter password:": "{{ grub_password }}"
+      when: isNonCompliant.msg == "6.15 is not compliant"
+      ignore_errors: true
+      register: hash_output
+
+    - name: Extract hash
+      debug:
+        msg: "{{ hash_output.stdout_lines | regex_search('grub.pbkdf2.sha512.\\d+\\.[A-Za-z0-9]+\\.[A-Za-z0-9]+') }}"
+      register: grub_hash
+      when: isNonCompliant.msg == "6.15 is not compliant"
+      ignore_errors: true
+
+    - name: Make it compliant2
+      shell: |
+        echo '#!/bin/sh
+        /usr/bin/cat > /rpool/boot/grub/password.cfg<<EOF
+        #
+        # GRUB password
+        #
+        set superusers="root"
+        password_pbkdf2 root {{ grub_hash.msg }}
+        EOF
+        /usr/bin/chmod 600 /rpool/boot/grub/password.cfg
+        /usr/bin/echo 'source /@/boot/grub/password.cfg'
+        ' > /usr/lib/grub2/bios/etc/grub.d/01\_password;
+        chmod +x /usr/lib/grub2/bios/etc/grub.d/01_password;
+        ./usr/lib/grub2/bios/etc/grub.d/01_password;
+        /usr/bin/chmod 700 /usr/lib/grub2/bios/etc/grub.d/01_password;
+        /usr/sbin/bootadm set-menu timeout=30;
+      ignore_errors: true
+      when: isNonCompliant.msg == "6.15 is not compliant"
+      
+
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.15 is not compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "6.15 is compliant"
+      when: isCompliant.msg == "6.15 is compliant"
+      ignore_errors: true
+
+
+    
+

@@ -1,0 +1,79 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '4.4 Enable Auditing of Process and Privilege Events'
+      command: grep "cis" /etc/security/audit_event | awk -F:'{ print $2 }'
+      register: output
+      ignore_errors: true
+
+    - name: output
+      debug: 
+        msg: "{{ output.stdout }}"
+
+    - name: Check if required audit events are present
+      assert:
+        that:
+          - "'AUE_CHROOT' in output.stdout"
+          - "'AUE_SETREUID' in output.stdout"
+          - "'AUE_SETREGID' in output.stdout"
+          - "'AUE_FCHROOT' in output.stdout"
+          - "'AUE_PFEXEC' in output.stdout"
+          - "'AUE_SETUID' in output.stdout"
+          - "'AUE_NICE' in output.stdout"
+          - "'AUE_SETGID' in output.stdout"
+          - "'AUE_PRIOCNTLSYS' in output.stdout"
+          - "'AUE_SETEGID' in output.stdout"
+          - "'AUE_SETEUID' in output.stdout"
+          - "'AUE_SETPPRIV' in output.stdout"
+          - "'AUE_SETSID' in output.stdout"
+          - "'AUE_SETPGID' in output.stdout"
+        fail_msg: "Required audit events not present"
+        success_msg: "All required audit events are present"
+      register: successorfailure
+      ignore_errors: true
+
+    - debug: msg="{{ successorfailure }}"
+
+    - name: 4.4 is compliant
+      debug:
+        msg: "4.4 is compliant"
+      when: successorfailure.msg == "All required audit events are present"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "4.4 is compliant"
+      when: compliant.msg == "4.4 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "4.4 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        awk 'BEGIN{FS=":"; OFS=":"} {if ($2 ~ /AUE_CHROOT|AUE_SETREUID|AUE_SETREGID|AUE_FCHROOT|AUE_PFEXEC|AUE_SETUID|AUE_NICE|AUE_SETGID|AUE_PRIOCNTLSYS|AUE_SETEGID|AUE_SETEUID|AUE_SETPPRIV|AUE_SETSID|AUE_SETPGID/)$4=$4",cis";} {print}' /etc/security/audit_event > /etc/security/audit_event.CIS;
+        cp /etc/security/audit_event.CIS /etc/security/audit_event;
+      when: isNonCompliant.msg == "4.4 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "4.4 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "4.4 is compliant"
+      when: isCompliant.msg == "4.4 is compliant"
+
+    

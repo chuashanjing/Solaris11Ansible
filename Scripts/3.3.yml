@@ -1,0 +1,63 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '3.3 Disable Response to ICMP Broadcast Netmask Requests'
+      command: grep "^TCP_STRONG_ISS=" /etc/default/inetinit
+      register: inet
+      ignore_errors: true
+
+    - name: '3.3 Disable Response to ICMP Broadcast Netmask Requests'
+      command: ipadm show-prop -p _strong_iss -co current tcp
+      register: tcp
+      ignore_errors: true
+
+    - name: inet output
+      debug: 
+        msg: "{{ inet.stdout }}"
+
+    - name: tcp output
+      debug: 
+        msg: "{{ tcp.stdout }}"
+
+    - name: 3.3 is compliant
+      debug:
+        msg: "3.3 is compliant"
+      when: inet.stdout == "TCP_STRONG_ISS=2" and tcp.stdout == "2"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "3.3 is compliant"
+      when: compliant.msg == "3.3 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "3.3 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc/default;
+        awk '/TCP_STRONG_ISS=/ { $1 = "TCP_STRONG_ISS=2" }; { print }' inetinit > inetinit.CIS;
+        mv inetinit.CIS inetinit;
+      when: isNonCompliant.msg == "3.3 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "3.3 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "3.3 is compliant"
+      when: isCompliant.msg == "3.3 is compliant"

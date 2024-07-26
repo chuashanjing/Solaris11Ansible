@@ -1,0 +1,72 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '7.6 Lock Inactive User Account'
+      shell: |
+        useradd -D | xargs -n 1 | grep inactive | awk -F= '{ print $2 }'
+      register: useradd
+      ignore_errors: true
+
+    - name: useradd
+      debug: 
+        msg: "{{ useradd.stdout }}"
+
+    - name: '7.6 Lock Inactive User Account'
+      shell: |
+        logins -axo -l "[name]" | awk -F: '{ print $13 }'
+      register: logins
+      ignore_errors: true
+
+    - name: logins
+      debug: 
+        msg: "{{ logins.stdout }}"
+
+    - name: 7.6 is compliant
+      debug:
+        msg: "7.6 is compliant"
+      when: 
+        - (useradd.stdout == "35")
+        - (logins.stdout == "35")
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "7.6 is compliant"
+      when: compliant.msg == "7.6 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "7.6 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        useradd -D -f 35;
+      #locks all inactive account after 35 days comment out as required
+        usermod -f 35 [name];
+      #locks specific inactive account after 35 days comment out as required
+        rolemod -f 35 [name];
+      #locks specific role account after 35 days comment out as required
+      when: isNonCompliant.msg == "7.6 is non-compliant"
+      ignore_errors: true
+  
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "7.6 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "7.6 is compliant"
+      when: isCompliant.msg == "7.6 is compliant"
+
+    

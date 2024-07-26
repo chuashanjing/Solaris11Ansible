@@ -1,0 +1,60 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '8.5 Check that the Banner Setting for telnet is Null'
+      shell: grep "^BANNER" /etc/default/telnetd
+      register: telnetd
+      ignore_errors: true
+
+    - name: telnetd output
+      debug: 
+        msg: "{{ telnetd }}"
+
+    - name: Compliant
+      debug:
+        msg: "8.5 is compliant"
+      when: telnetd.stdout == "BANNER="
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "8.5 is compliant"
+      register: isCompliant
+      when: compliant.msg == "8.5 is compliant"
+      ignore_errors: true
+
+    - name: isNotCompliant
+      debug:
+        msg: "8.5 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Make it comply
+      shell: |
+        cd /etc/default 
+        awk '/^BANNER=/ { $1 = "BANNER=" }; { print }' telnetd > telnetd.CIS 
+        mv telnetd.CIS telnetd 
+      when: isNotCompliant.msg == "8.5 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "8.5 is non-compliant"
+      ignore_errors: true
+
+    - name: Final
+      debug:
+        msg: "8.5 is compliant"
+      when: isCompliant.msg == "8.5 is compliant"
+      ignore_errors: true
+
+
+    

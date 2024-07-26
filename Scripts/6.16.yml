@@ -1,0 +1,57 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.16 Restrict root Login to System Console'
+      shell: grep "^CONSOLE=/dev/console" /etc/default/login
+      register: result
+      ignore_errors: true
+
+    - name: result output
+      debug: 
+        msg: "{{ result.stdout }}"
+
+    - name: Compliant
+      debug: 
+        msg: "6.16 is compliant"
+      when: result.stdout == "CONSOLE=/dev/console"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "6.16 is compliant"
+      when: compliant.msg == "6.16 is compliant"
+      register: isCompliant
+      ignore_errors: true
+
+    - name: isNotCompliant
+      debug:
+        msg: "6.16 is non-compliant"
+      when: compliant.skipped == true
+      register: isNotCompliant
+      ignore_errors: true
+
+    - name: Make it comply
+      shell: |
+        cd /etc/default;
+        awk '/CONSOLE=/ { print "CONSOLE=/dev/console"; next }; { print }' login > login.CIS;
+        mv login.CIS login;
+      when: isNotCompliant.msg == "6.16 is non-compliant"
+      ignore_errors: true
+  
+    - name: Rerun script
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "6.16 is non-compliant"
+      ignore_errors: true
+
+    - name: Final
+      debug:
+        msg: "6.16 is compliant"
+      when: isCompliant.msg == "6.16 is compliant"
+      ignore_errors: true

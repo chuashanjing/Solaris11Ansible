@@ -1,0 +1,66 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.1 Disable login: Services on Serial Ports'
+      command: svcs -Ho state svc:/system/console-login:terma
+      register: terma
+      ignore_errors: true
+
+    - name: '6.1 Disable login: Services on Serial Ports'
+      command: svcs -Ho state svc:/system/console-login:termb
+      register: termb
+      ignore_errors: true
+
+    - name: terma output
+      debug: 
+        msg: "{{ terma.stdout }}"
+
+    - name: termb output
+      debug: 
+        msg: "{{ termb.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "6.1 is compliant"
+      when: termb.stdout == "disabled" and terma.stdout == "disabled"
+      register: compliant
+
+    - debug: msg="{{ compliant }}"
+
+    - name: isCompliant
+      debug:
+        msg: "6.1 is compliant"
+      when: compliant.msg == "6.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "6.1 is not compliant"
+      when: compliant.skipped == true
+      register: isNotCompliant
+      ignore_errors: true
+
+    - name: Make it comply
+      shell: |
+        svcadm disable svc:/system/console-login:terma
+        svcadm disable svc:/system/console-login:termb
+      when: isNotCompliant.msg == "6.1 is not compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "6.1 is compliant"
+      when: isCompliant.msg == "6.1 is compliant"
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "6.1 is not compliant"
+      ignore_errors: true
+    

@@ -1,0 +1,56 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.14 Disable "nobody" Access for RPC Encryption Key Storage Service'
+      shell: grep "^ENABLE_NOBODY_KEYS=" /etc/default/keyserv
+      register: keyserv
+      ignore_errors: true
+
+    - name: keyserv output
+      debug: 
+        msg: "{{ keyserv.stdout }}"
+    
+    - name: Compliant
+      debug:
+        msg: "6.14 is compliant"
+      when: keyserv.stdout == "ENABLE_NOBODY_KEYS=NO" or keyserv.stdout == ""
+      ignore_errors: true
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "6.14 is compliant"
+      when: compliant.msg == "6.14 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "6.14 is not compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc/default;
+        cp keyserv keyserv.orig;
+        awk '/ENABLE_NOBODY_KEYS=/ { $1 = "ENABLE_NOBODY_KEYS=NO" } { print }' keyserv > keyserv.CIS;
+        mv keyserv.CIS keyserv;
+      when: isNonCompliant.msg == "6.14 is not compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.14 is not compliant"
+
+    - name: FINAL
+      debug:
+        msg: "6.14 is compliant"
+      when: isCompliant.msg == "6.14 is compliant"

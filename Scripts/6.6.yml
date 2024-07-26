@@ -1,0 +1,55 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.6 Set Delay between Failed Login Attempts to 4'
+      shell: grep "^SLEEPTIME=" /etc/default/login
+      register: sleep
+      ignore_errors: true
+
+    - name: sleep output
+      debug: 
+        msg: "{{ sleep.stdout }}"
+
+    - name: 6.6 is compliant
+      debug:
+        msg: "6.6 is compliant"
+      when: sleep.stdout == "SLEEPTIME=4" or sleep.stdout == ""
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "6.6 is compliant"
+      when: compliant.msg == "6.6 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "6.6 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc/default;
+        cp login login.orig;
+        awk '/SLEEPTIME=/ { $1 = "SLEEPTIME=4" } { print }' login > login.CIS;
+        mv login.CIS login;
+      when: isNonCompliant.msg == "6.6 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.6 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "6.6 is compliant"
+      when: isCompliant.msg == "6.6 is compliant"

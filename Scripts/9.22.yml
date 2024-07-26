@@ -1,0 +1,68 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.22 Find SUID/SGID System Executables'
+      shell: |
+        cat /etc/motd
+      register: exe
+      ignore_errors: true
+
+    - name: exe
+      debug: 
+        msg: "{{ exe.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.22 is compliant"
+      when: exe.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.22 is compliant"
+      when: compliant.msg == "9.22 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "9.22 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+  
+    - name: Not compliant
+      debug:
+        msg: |
+          "Correct or justify any items discovered in the Audit step. Determine the existence of any set-UID programs that do 
+          not belong on the system, and work with the owner (or system administrator) to determine the best course of 
+          action in accordance with site policy. Digital signatures on the Solaris Set-UID binaries can be verified with the 
+          elfsign utility"
+      when: isNonCompliant.msg == "9.22 is non-compliant"
+
+    - name: Test for authenticity
+      shell: |
+        elfsign verify -e /usr/bin/su
+      when: isNonCompliant.msg == "9.22 is non-compliant"
+      ignore_errors: true
+      register: authentic
+
+    - name: isAuthentic
+      debug:
+        msg: "/usr/bin/su verification passed."
+      when: | 
+        authentic.stdout == "elfsign: verification of /usr/bin/su passed."
+      ignore_errors: true
+      
+    - name: FINAL
+      debug:
+        msg: "9.22 is compliant"
+      when: isCompliant.msg == "9.22 is compliant"
+

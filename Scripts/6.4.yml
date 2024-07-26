@@ -1,0 +1,107 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.4 Set Default Screen Lock for GNOME Users'
+      shell: |
+        cd /usr/share/X11/app-defaults
+        grep "^\*timeout:" XScreenSaver
+      register: timeout
+      ignore_errors: true
+
+    - name: '6.4 Set Default Screen Lock for GNOME Users'
+      shell: |
+        cd /usr/share/X11/app-defaults
+        grep "^\*lockTimeout:" XScreenSaver
+      register: lockTimeout
+      ignore_errors: true
+
+    - name: '6.4 Set Default Screen Lock for GNOME Users'
+      shell: |
+        cd /usr/share/X11/app-defaults
+        grep "^\*lock:" XScreenSaver
+      register: lock
+      ignore_errors: true
+
+    - name: timeout output
+      debug: 
+        msg: "{{ timeout.stdout }}"
+
+    - name: locktimeout output
+      debug: 
+        msg: "{{ lockTimeout.stdout }}"
+
+    - name: lock output
+      debug: 
+        msg: "{{ lock.stdout }}"
+
+    - name: Compliant (timeout)
+      debug:
+        msg: "compliant"
+      when: timeout.stdout == ""
+      register: compliant1
+
+    - name: Compliant (lockTimeout)
+      debug:
+        msg: "compliant"
+      when: |
+        lockTimeout.stdout == "*lockTimeout: 0:00:00"
+      register: compliant2
+
+    - name: Compliant (Lock)
+      debug:
+        msg: "compliant"
+      when: |
+        lock.stdout == "*lock: True"
+      register: compliant3
+
+    - name: Compliant
+      debug:
+        msg: "6.4 is compliant"
+      when: 
+        - (compliant1.msg == "compliant")
+        - (compliant2.msg == "compliant")
+        - (compliant3.msg == "compliant")
+      register: compliant
+      ignore_errors: true
+
+    - name: IsCompliant
+      debug:
+        msg: "6.4 is compliant"
+      when: compliant.msg == "6.4 is compliant"
+      ignore_errors: true
+      register: isCompliant
+    
+    
+
+    - name: IsNonCompliant
+      debug:
+        msg: "6.4 is non-compliant"
+      when: compliant.failed == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it comply
+      shell: |
+        cd /usr/share/X11/app-defaults;
+        cp XScreenSaver XScreenSaver.orig;
+        awk '!/^\*timeout:/ { if (/^\*lockTimeout:/) $2 = "0:00:00"; if (/^\*lock:/) $2 = "True"; print }' XScreenSaver > XScreenSaver.CIS
+        mv XScreenSaver.CIS XScreenSaver;
+      when: isNonCompliant.msg == "6.4 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.4 is non-compliant"
+      ignore_errors: true
+    
+    - name: FINAL
+      debug:
+        msg: "6.4 is compliant"
+      when: isCompliant.msg == "6.4 is compliant"
+      ignore_errors: true

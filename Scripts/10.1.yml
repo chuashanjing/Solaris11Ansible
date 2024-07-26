@@ -1,0 +1,54 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '10.1 SN.1 Restrict access to suspend feature'
+      shell: poweradm list | grep suspend
+      register: sn
+      ignore_errors: true
+
+    - name: sn output
+      debug: 
+        msg: "{{ sn.stdout }}"
+
+    - name: 10.1 is compliant
+      debug:
+        msg: "10.1 is compliant"
+      when: |
+        sn.stdout == "suspend/suspend-enable                       current=false, smf=false"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "10.1 is compliant"
+      when: compliant.msg == "10.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "10.1 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        poweradm set suspend-enable=false
+        poweradm update
+      when: isNonCompliant.msg == "10.1 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "10.1 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "10.1 is compliant"
+      when: isCompliant.msg == "10.1 is compliant"

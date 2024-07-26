@@ -1,0 +1,61 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '3.15 Set Maximum Number of Half-open TCP Connections'
+      command: ipadm show-prop -p _conn_req_max_q0 -co current tcp
+      register: current
+      ignore_errors: true
+
+    - name: '3.15 Set Maximum Number of Half-open TCP Connections'
+      command: ipadm show-prop -p _conn_req_max_q0 -co persistent tcp
+      register: persistent
+      ignore_errors: true
+
+    - name: current output
+      debug: 
+        msg: "{{ current.stdout }}"
+
+    - name: persistent output
+      debug: 
+        msg: "{{ persistent.stdout }}"
+
+    - name: 3.15 is compliant
+      debug:
+        msg: "3.15 is compliant"
+      when: current.stdout == "4096" and persistent.stdout == "4096"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "3.15 is compliant"
+      when: compliant.msg == "3.15 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "3.15 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        ipadm set-prop -p _conn_req_max_q0=4096 tcp
+      when: isNonCompliant.msg == "3.15 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "3.15 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "3.15 is compliant"
+      when: isCompliant.msg == "3.15 is compliant"

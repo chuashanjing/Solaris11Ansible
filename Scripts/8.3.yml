@@ -1,0 +1,57 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '8.3 Enable a Warning Banner for the SSH Service'
+      shell: |
+        grep "^Banner" /etc/ssh/sshd_config
+      register: banner
+      ignore_errors: true
+
+    - name: banner
+      debug: 
+        msg: "{{ banner.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "8.3 is compliant"
+      when: banner.stdout == "Banner /etc/issue"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "8.3 is compliant"
+      when: compliant.msg == "8.3 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "8.3 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        awk '/^#Banner/ { $1 = "Banner" } { print }' /etc/ssh/sshd_config > /etc/ssh/sshd_config.CIS
+        mv /etc/ssh/sshd_config.CIS /etc/ssh/sshd_config
+        svcadm restart svc:/network/ssh
+      when: isNonCompliant.msg == "8.3 is non-compliant"
+      ignore_errors: true
+  
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "8.3 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "8.3 is compliant"
+      when: isCompliant.msg == "8.3 is compliant"
+

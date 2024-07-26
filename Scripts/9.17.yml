@@ -1,0 +1,53 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.17 Check for Duplicate GIDs'
+      shell: | 
+        getent group | cut -f3 -d":" | sort -n | uniq -c | while read x ; do 
+        [ -z "${x}" ] && break 
+        set - $x 
+        if [ $1 -gt 1 ]; then 
+        grps=`getent group | nawk -F: '($3 == n) { print $1 }' n=$2 | xargs` 
+        echo "Duplicate GID ($2): ${grps}" 
+        fi 
+        done 
+      register: audit1
+      ignore_errors: true
+
+    - name: audit1
+      debug: 
+        msg: "{{ audit1.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.17 is compliant"
+      when: audit1.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.17 is compliant"
+      when: compliant.msg == "9.17 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: | 
+          Correct or justify any items discovered in the Audit step. Determine if there exists any duplicate group identifiers, 
+          and work with each respective group owner to remediate this issue and ensure that the group ownership of their 
+          files are set to an appropriate value.
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Final
+      debug:
+        msg: "9.17 is compliant"
+      when: isCompliant.msg == "9.17 is compliant"

@@ -1,0 +1,61 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.3 Check That Defined Home Directories Exist'
+      shell: |
+        logins -xo | while read line; do 
+        user=`echo ${line} | awk -F: '{ print $1 }'` 
+        home=`echo ${line} | awk -F: '{ print $6 }'` 
+        if [ ! -d "${home}" ]; then 
+        echo ${user} 
+        fi 
+        done 
+      register: homedir
+      ignore_errors: true
+
+    - name: homedir output
+      debug: 
+        msg: "{{ homedir.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.3 is compliant"
+      when: homedir.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.3 is compliant"
+      register: isCompliant
+      when: compliant.msg == "9.3 is compliant"
+      ignore_errors: true
+
+    - name: isNotCompliant
+      debug:
+        msg: "9.3 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Final (Not comply)
+      debug:
+        msg: |
+          9.3 is not compliant
+          Correct or justify any items discovered in the Audit step. Determine if there exists any users whose home directories do not exist, and work with those users to determine the best course of action in accordance with site policy.
+      when: isNotCompliant.msg == "9.3 is non-compliant"
+      ignore_errors: true
+
+    - name: Final (Comply)
+      debug:
+        msg: "9.3 is compliant"
+      when: isCompliant.msg == "9.3 is compliant"
+      ignore_errors: true
+
+
+    

@@ -1,0 +1,58 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.1 Check for Remote Consoles'
+      shell: /usr/sbin/consadm -p
+      register: consadm
+      ignore_errors: true
+
+    - name: consadm output
+      debug: 
+        msg: "{{ consadm.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "9.1 is compliant"
+      when: consadm.stdout == ""
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "9.1 is compliant"
+      register: isCompliant
+      when: compliant.msg == "9.1 is compliant"
+      ignore_errors: true
+
+    - name: isNotCompliant
+      debug:
+        msg: "9.1 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNotCompliant
+
+    - name: Make it comply
+      shell: |
+         /usr/sbin/consadm [-d device...]
+      when: isNotCompliant.msg == "9.1 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNotCompliant.msg == "9.1 is non-compliant"
+      ignore_errors: true
+
+    - name: Final
+      debug:
+        msg: "9.1 is compliant"
+      when: isCompliant.msg == "9.1 is compliant"
+      ignore_errors: true
+
+
+    

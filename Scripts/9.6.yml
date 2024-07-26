@@ -1,0 +1,49 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '9.6 Ensure Password Fields are Not Empty'
+      command: logins -p
+      register: login
+      ignore_errors: true
+
+    - name: login
+      debug: 
+        msg: "{{ login.stdout }}"
+
+    - name: 9.6 is compliant
+      debug:
+        msg: "9.6 is compliant"
+      when: login.stdout == ""
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "9.6 is compliant"
+      when: compliant.msg == "9.6 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "9.6 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      debug:
+        msg: Use the passwd -l command to lock accounts that are not permitted to execute commands . Use the passwd -N command to set accounts to be non-login. 
+      when: isNonCompliant.msg == "9.6 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "9.6 is compliant"
+      when: isCompliant.msg == "9.6 is compliant"
+
+    

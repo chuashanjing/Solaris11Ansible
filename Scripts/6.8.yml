@@ -1,0 +1,69 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.8 Restrict FTP Use'
+      shell: |
+        for user in `logins -s | awk '{ print $1 }'` aiuser noaccess nobody nobody4;
+        do grep -w "${user}" /etc/ftpd/ftpusers >/dev/null 2>&1
+        if [ $? != 0 ];
+        then echo "User '${user}' not in /etc/ftpd/ftpusers."
+        fi
+        done
+      register: ftp
+      ignore_errors: true
+
+    - name: ftp output
+      debug: 
+        msg: "{{ ftp.stdout }}"
+
+    - name: 6.8 is compliant
+      debug:
+        msg: "6.8 is compliant"
+      when: ftp.stdout == ""
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "6.8 is compliant"
+      when: compliant.msg == "6.8 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "6.8 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+
+    - name: Make it compliant
+      shell: |
+        cd /etc/ftpd
+        cp ftpusers ftpusers.orig
+        for user in `logins -s | awk '{ print $1 }'` aiuser noaccess nobody nobody4; do
+        $(echo $user >> ftpusers)
+        done
+        sort -u ftpusers > ftpusers.CIS
+        mv ftpusers.CIS ftpusers
+        #add the hashtag infront of getent
+       #< remove hash tag if ur site policy states that
+        #users does not have to be authorized to use FTP >
+        #getent passwd | cut -f1 -d":" > /etc/ftpd/ftpusers
+      when: isNonCompliant.msg == "6.8 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.8 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "6.8 is compliant"
+      when: isCompliant.msg == "6.8 is compliant"

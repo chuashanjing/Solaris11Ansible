@@ -1,0 +1,60 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '7.4 Set Default File Creation Mask for FTP Users'
+      command: grep "^Umask" /etc/proftpd.conf | awk '{ print $2 }'
+      register: umask
+      ignore_errors: true
+
+    - name: umask
+      debug: 
+        msg: "{{ umask.stdout }}"
+
+    - name: 7.4 is compliant
+      debug:
+        msg: "7.4 is compliant"
+      when: umask.stdout == "/etc/proftpd.conf:Umask 027"
+      register: compliant
+
+    - name: isCompliant
+      debug:
+        msg: "7.4 is compliant"
+      when: compliant.msg == "7.4 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "7.4 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cd /etc;
+        if [ "`grep '^Umask' proftpd.conf`" ]; then
+        awk '/^Umask/ { $2 = "027" } { print }' proftpd.conf > proftpd.conf.CIS
+        mv proftpd.conf.CIS proftpd.conf
+        else
+        echo "Umask 027" >> proftpd.conf
+        fi
+      when: isNonCompliant.msg == "7.4 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "7.4 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "7.4 is compliant"
+      when: isCompliant.msg == "7.4 is compliant"
+
+    

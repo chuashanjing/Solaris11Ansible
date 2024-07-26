@@ -1,0 +1,55 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.11 Blocking Authentication Using Empty/Null Passwords for SSH'
+      shell: grep "^PermitEmptyPasswords" /etc/ssh/sshd_config
+      register: password
+      ignore_errors: true
+
+    - name: password output
+      debug: 
+        msg: "{{ password.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "6.11 is compliant"
+      when: password.stdout == "" or password.stdout == "PermitEmptyPasswords no"
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "6.11 is compliant"
+      when: compliant.msg == "6.11 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: isNotCompliant
+      debug:
+        msg: "6.11 is not compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        sed 's/^PermitEmptyPasswords yes/PermitEmptyPasswords no/' /etc/ssh/sshd_config > /etc/ssh/sshd_config.CIS;
+        mv /etc/ssh/sshd_config.CIS /etc/ssh/sshd_config;
+        svcadm restart svc:/network/ssh;
+      when: isNonCompliant.msg == "6.11 is not compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.11 is not compliant"
+
+    - name: FINAL
+      debug:
+        msg: "6.11 is compliant"
+      when: isCompliant.msg == "6.11 is compliant"

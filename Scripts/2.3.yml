@@ -1,0 +1,75 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '2.3 Configure sendmail Service for Local-Only Mode'
+      shell: netstat -an | grep LIST | grep ".25 "
+      register: result
+
+    - name: result output
+      debug: 
+        msg: "{{ result.stdout }}"
+
+    - name: '2.3 Configure sendmail Service for Local-Only Mode'
+      shell: netstat -an | grep LIST | grep ".587 "
+      register: result2
+
+    - name: result2 output
+      debug: 
+        msg: "{{ result2.stdout }}"
+
+    - debug: msg="debug is Compliant"
+      when: result.stdout == "127.0.0.1.25               *.*                  0      0  256000      0 LISTEN\n::1.25                                  *.*                               0      0  256000      0 LISTEN      "
+      register: debug
+
+    - debug: msg="debug2 is Compliant"
+      when: result2.stdout == "127.0.0.1.587              *.*                  0      0  256000      0 LISTEN"
+      register: debug2
+
+    - name: If Non-compliant (debug)
+      debug: msg="2.3 is non-compliant debug"
+      when: debug.skip_reason == "Conditional result was False"
+      ignore_errors: true
+      register: secondtestdebug
+
+    - name: If Non-compliant (debug2)
+      debug: msg="2.3 is non-compliant debug2"
+      when: debug2.skip_reason == "Conditional result was False"
+      ignore_errors: true
+      register: secondtestdebug2
+
+    - debug: msg="{{ secondtestdebug }}"
+    - debug: msg="{{ secondtestdebug2 }}"
+
+    - name: If non-compliant (debug)
+      shell: |
+        svccfg -v -s svc:/network/smtp:sendmail setprop config/local_only=true;
+        svcadm refresh sendmail;
+        svcadm restart sendmail;
+      when: secondtestdebug.msg == "2.3 is non-compliant debug"
+      ignore_errors: true
+      register: success
+
+    - name: If non-compliant (debug2)
+      shell: |
+        svccfg -v -s svc:/network/smtp:sendmail setprop config/local_only=true;
+        svcadm refresh sendmail;
+        svcadm restart sendmail;
+      when: secondtestdebug2.msg == "2.3 is non-compliant debug2"
+      ignore_errors: true
+      register: success1
+
+
+    - name: rerun script
+      debug:
+        msg: "Rerun script after a few minutes to view changes"
+      when: success.changed == true or success1.changed == true
+
+    - name: FINAL
+      debug:
+        msg: "2.3 is compliant"
+      when: success.changed == false and success1.changed == false   

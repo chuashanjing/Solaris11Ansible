@@ -1,0 +1,55 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '6.5 Remove Autologin Capabilities from the GNOME desktop'
+      shell: egrep "auth|account" /etc/pam.d/gdm-autologin | grep -vc ^#
+      register: auto
+      ignore_errors: true
+
+    - name: auto output
+      debug: 
+        msg: "{{ auto.stdout }}"
+
+    - name: 6.5 is compliant
+      debug:
+        msg: "6.5 is compliant"
+      when:  auto.stdout == "0"
+      register: compliant
+
+    - name: Compliant
+      debug:
+        msg: "6.5 is compliant"
+      when: compliant.msg == "6.5 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "6.5 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        cp /etc/pam.d/gdm-autologin /etc/pam.d/gdm-autologin.orig;
+        awk '{ if ( $1 ~ /auth/ || $1 ~ /account/) $1 = "#"$1 } { print };' /etc/pam.d/gdm-autologin > /etc/pam.d/gdm autologin.CIS;
+        cp /etc/pam.d/gdm-autologin.CIS /etc/pam.d/gdm-autologin;
+      when: isNonCompliant.msg == "6.5 is non-compliant"
+      ignore_errors: true
+
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "6.5 is non-compliant"
+      ignore_errors: true
+
+    - name: FINAL
+      debug:
+        msg: "6.5 is compliant"
+      when: isCompliant.msg == "6.5 is compliant"

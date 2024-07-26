@@ -1,0 +1,94 @@
+- hosts: solaris
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/local/python-3.6/bin/python3
+    ansible_become_pass: '<your solaris machine password>'
+
+  tasks:
+    - name: '8.1 Create Warnings for Standard Login Services'
+      shell: |
+        cat /etc/motd
+      register: motd
+      ignore_errors: true
+
+    - name: '8.1 Create Warnings for Standard Login Services'
+      shell: |
+        ls -l /etc/motd | awk '{print $1, $3, $4, $9}'
+      register: motdp
+      ignore_errors: true
+
+    - name: '8.1 Create Warnings for Standard Login Services'
+      shell: |
+        cat /etc/issue
+      register: issue
+      ignore_errors: true
+
+    - name: '8.1 Create Warnings for Standard Login Services'
+      shell: |
+        ls -l /etc/issue | awk '{print $1, $3, $4, $9}'
+      register: issuep
+      ignore_errors: true
+
+    - name: motd
+      debug: 
+        msg: "{{ motd.stdout }}"
+
+    - name: motdp
+      debug: 
+        msg: "{{ motdp.stdout }}"
+
+    - name: issue
+      debug: 
+        msg: "{{ issue.stdout }}"
+
+    - name: issuep
+      debug: 
+        msg: "{{ issuep.stdout }}"
+
+    - name: Compliant
+      debug:
+        msg: "8.1 is compliant"
+      when: 
+        - (motd.stdout == "Authorized users only. All activity may be monitored and reported.")
+        - (motdp.stdout == "-rw-r--r-- root sys /etc/motd")
+        - (issue.stdout == "Authorized users only. All activity may be monitored and reported.")
+        - (issuep.stdout == "-rw-r--r-- root root /etc/issue")
+      register: compliant
+      ignore_errors: true
+
+    - name: isCompliant
+      debug:
+        msg: "8.1 is compliant"
+      when: compliant.msg == "8.1 is compliant"
+      ignore_errors: true
+      register: isCompliant
+
+    - name: Non-Compliant
+      debug:
+        msg: "8.1 is non-compliant"
+      when: compliant.skipped == true
+      ignore_errors: true
+      register: isNonCompliant
+
+    - name: Make it compliant
+      shell: |
+        echo "Authorized users only. All activity may be monitored and reported." > /etc/motd;
+        chown root:sys /etc/motd;
+        chmod 644 /etc/motd;
+        echo "Authorized users only. All activity may be monitored and reported." > /etc/issue;
+        chown root:root /etc/issue;
+        chmod 644 /etc/issue;
+      when: isNonCompliant.msg == "8.1 is non-compliant"
+      ignore_errors: true
+  
+    - name: Rerun
+      debug:
+        msg: "Rerun script to view changes"
+      when: isNonCompliant.msg == "8.1 is non-compliant"
+
+    - name: FINAL
+      debug:
+        msg: "8.1 is compliant"
+      when: isCompliant.msg == "8.1 is compliant"
+
