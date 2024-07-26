@@ -41,3 +41,5 @@ Steps to install python:
 pip3 install pexpect
 or
 /usr/local/python3.6/bin/pip3 install pexpect
+
+Linked In: https://www.linkedin.com/in/chua-shan-jing-61ab28239/
